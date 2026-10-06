@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 — 06/10/2026
+
+- Assinatura do autor no canto inferior direito de todas as telas.
+
 ## 0.4.0 — 06/10/2026
 
 Primeira versão pública.
