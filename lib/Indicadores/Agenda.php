@@ -88,13 +88,15 @@ final class Agenda
                 usort($x['lista'], fn($a, $b) => strcasecmp((string) $a['nome'], (string) $b['nome']));
             }
             unset($x);
-            // o que o MK-AUTH ja cortou hoje (quem foi cortado sai dos candidatos acima)
-            $feito = self::cortados($hoje, $hoje)[$hoje] ?? null;
-            $porDia[$hoje]['cortados'] = $feito['clientes'] ?? 0;
-            $porDia[$hoje]['religados'] = $feito['religados'] ?? 0;
-            $porDia[$hoje]['valor_cortados'] = $feito['valor'] ?? 0.0;
             return ['dias' => array_values($porDia), 'corte_automatico' => Parametros::corteAutomatico(), 'guardiao' => $guardiao];
         });
+        // o que o MK-AUTH ja cortou hoje (quem foi cortado sai dos candidatos acima). FORA do cache:
+        // o cron de 10 min nao limpa o cache, e o card ficaria atrasado (ou zerado apos atualizar).
+        $hoje = $v['dias'][0]['data'];
+        $feito = self::cortados($hoje, $hoje)[$hoje] ?? null;
+        $v['dias'][0]['cortados'] = $feito['clientes'] ?? 0;
+        $v['dias'][0]['religados'] = $feito['religados'] ?? 0;
+        $v['dias'][0]['valor_cortados'] = $feito['valor'] ?? 0.0;
         return $v;
     }
 

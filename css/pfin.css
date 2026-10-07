@@ -691,9 +691,9 @@ a.pf-aba.ativa:hover { background: #000; color: #fff; }
 .pf-ev.mini { display: inline-flex; flex-wrap: nowrap; font-size: 11px; padding: 2px 6px; }
 .pf-ev.venc     { background: #e6f4ea; color: #157a5a; border-color: #c3e6cb; }
 .pf-ev.aviso    { background: #fef5e7; color: #a5670a; border-color: #fbe2bd; }
-.pf-ev.corte    { background: #fdf0ef; color: #c0392b; border-color: #fadbd8; }
+.pf-ev.corte    { background: #c0392b; color: #fff; border-color: #a5281b; }
 .pf-ev.conflito { background: #fbd5d1; color: #a5281b; border-color: #e74c3c; }
-.pf-ev.feito    { background: #c0392b; color: #fff; border-color: #a5281b; }
+.pf-ev.feito    { background: #fdf0ef; color: #c0392b; border-color: #fadbd8; }
 @keyframes pf-pulsa { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(1.12); } }
 .pf-pulsa { animation: pf-pulsa 1.5s infinite; }
 

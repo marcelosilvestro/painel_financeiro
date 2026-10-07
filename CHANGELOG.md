@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 — 07/10/2026
+
+- Agenda: o corte realizado ganha o vermelho claro e a projeção de corte, o vermelho sólido.
+- Agenda: o card "Cortados hoje" não passa mais pelo cache — vinha zerado logo depois de atualizar
+  a versão e podia atrasar até o cache vencer.
+
 ## 0.4.2 — 07/10/2026
 
 - **Agenda: corte realizado.** Até hoje, o calendário e o card "Cortados hoje" mostram quem o MK-AUTH
