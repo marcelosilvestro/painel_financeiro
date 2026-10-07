@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.2 — 07/10/2026
+
+- **Agenda: corte realizado.** Até hoje, o calendário e o card "Cortados hoje" mostram quem o MK-AUTH
+  cortou de verdade: quantos, quantos já foram religados e a lista com hora do corte e do religamento.
+  Antes, depois que o corte rodava, a agenda mostrava "0 serão cortados", porque quem já foi cortado
+  sai dos candidatos. Dias futuros seguem com a projeção.
+- O cron de 10 minutos passa a ler também os bloqueios novos do log, e o corte do dia aparece logo.
+- Religamento sem registro no log (o MK-AUTH nem sempre registra) vem do estado atual do cliente.
+- **Carteira: bloqueios por mês corrigidos.** Cada corte do log conta (antes, um corte religado sem
+  registro no log travava o cliente como "bloqueado" e os cortes seguintes não contavam: setembro/2026
+  mostrava 29 em vez de 166). O tempo bloqueado usa só religamentos de hora conhecida.
+
 ## 0.4.1 — 06/10/2026
 
 - Assinatura do autor no canto inferior direito de todas as telas.

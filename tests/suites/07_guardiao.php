@@ -60,7 +60,9 @@ Db::exec('DELETE FROM tab_feriados WHERE data = ?', [$hoje]);
 T::suite('Agenda com o guardiao');
 
 Config::set('guardiao_feriado', '1', 'teste');
+Calendario::fixarHoje('2026-09-30');
 $m = Agenda::mes(2026, 10);   // 28/10 continua feriado (suite 06)
+Calendario::fixarHoje(null);
 $c = null;
 foreach ($m['dias'][28]['eventos'] as $e) { if ($e['tipo'] === 'corte' && $e['venc'] === 10) { $c = $e; } }
 T::igual('corte V10 sai do feriado 28/10 e vai para 29/10', '2026-10-28', $c['adiado_de'] ?? null);

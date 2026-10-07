@@ -56,9 +56,9 @@ T::igual('lista de recuperacao: c8', ['c8'], array_column($rl['linhas'], 'login'
 $pf = Carteira::primeiraFatura(substr($hoje, 0, 7));
 T::igual('primeira fatura: c11 (novo) pagou em dia', 1, array_sum(array_column($pf['meses'], 'em_dia')));
 
-// log do MK-AUTH: c9 ja estava bloqueado quando o historico comeca (nao e episodio novo);
-// c3 bloqueia (texto com o NOME, login vem do titulo), e relogado no dia seguinte, desbloqueia em
-// 5 dias e bloqueia de novo.
+// log do MK-AUTH: c9 cortado e desbloqueado (manual) 3 dias depois; c3 cortado (texto com o NOME,
+// login vem do titulo), religado SEM log (o MK-AUTH nem sempre registra) e cortado de novo no dia
+// seguinte, desbloqueado (auto) 4 dias depois e cortado mais uma vez.
 $tituloC3 = (int) Db::valor("SELECT id FROM sis_lanc WHERE login = 'c3' LIMIT 1");
 // titulo inexistente: o login sai do proprio texto (caminho alternativo)
 $tituloC9 = 999999;
@@ -80,9 +80,9 @@ $bl = null;
 foreach (Carteira::bloqueios(substr($hoje, 0, 7))['meses'] as $x) {
     if ($x['mes'] === $base->format('Y-m')) { $bl = $x; }
 }
-T::igual('bloqueios: 2 episodios de c3 (relog e herdado de c9 nao contam)', 2, $bl['bloqueios']);
-T::igual('desbloqueios: 1 automatico e 1 manual', [1, 1], [$bl['desbloqueios_auto'], $bl['desbloqueios_manual']]);
-T::igual('tempo bloqueado: 5 dias (desbloqueio herdado nao tem duracao)', 5.0, $bl['mediana_dias']);
+T::igual('bloqueios: todo corte do log conta (c9 + 3 de c3)', 4, $bl['bloqueios']);
+T::igual('desbloqueios: 1 automatico e 1 manual (so os do log)', [1, 1], [$bl['desbloqueios_auto'], $bl['desbloqueios_manual']]);
+T::igual('tempo bloqueado: mediana de 3,04 (c9) e 4 dias (c3); religado sem hora fica de fora', 3.5, $bl['mediana_dias']);
 
 T::suite('Agenda');
 

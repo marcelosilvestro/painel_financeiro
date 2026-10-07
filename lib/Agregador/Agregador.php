@@ -142,7 +142,17 @@ final class Agregador
             $amanha = (new DateTimeImmutable($hoje))->modify('+1 day')->format('Y-m-d');
             $n = self::fatoDia($hoje, $amanha);
             Config::set('fato_hoje_em', (string) Db::valor('SELECT NOW()'), 'cron', true);
-            return ['dia' => $hoje, 'linhas_dia' => $n, 'ms' => (int) ((microtime(true) - $ini) * 1000)];
+            // bloqueios do dia (incremental pelo id do log, barato): a Agenda mostra o corte de hoje.
+            // So com a trava do noturno livre — os dois gravando juntos duplicariam o log_id.
+            $nEv = 0;
+            if (Db::travar(self::TRAVA, 0)) {
+                try {
+                    $nEv = self::eventosBloqueio();
+                } finally {
+                    Db::destravar(self::TRAVA);
+                }
+            }
+            return ['dia' => $hoje, 'linhas_dia' => $n, 'eventos_bloqueio' => $nEv, 'ms' => (int) ((microtime(true) - $ini) * 1000)];
         } finally {
             Db::destravar(self::TRAVA . '.hoje');
         }

@@ -132,9 +132,16 @@ final class Calendario
      */
     public static function hoje(): string
     {
-        static $h = null;
-        return $h ??= (string) Db::valor('SELECT CURDATE()');
+        return self::$hoje ??= (string) Db::valor('SELECT CURDATE()');
     }
+
+    /** So para teste: congela o "hoje" das projecoes (null volta ao relogio do banco). */
+    public static function fixarHoje(?string $data): void
+    {
+        self::$hoje = $data;
+    }
+
+    private static ?string $hoje = null;
 
     /** [primeiro dia, primeiro dia do mes seguinte] de um 'AAAA-MM'. */
     public static function limitesMes(string $mes): array

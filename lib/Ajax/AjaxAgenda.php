@@ -29,12 +29,23 @@ final class AjaxAgenda
     }
 
 
-    /** Calendario do mes. Sem o papel nominal, ninguem recebe nome de cliente (aqui nao ha). */
+    /** Calendario do mes. Sem o papel nominal, ninguem recebe nome de cliente (so a lista dos cortados tem). */
     public static function mes(array $e): array
     {
         [$mes] = AjaxVisao::periodo($e);
         [$a, $m] = array_map('intval', explode('-', $mes));
         $r = Agenda::mes($a, $m);
+        if (!Permissao::tem('nominal')) {
+            foreach ($r['dias'] as &$d) {
+                foreach ($d['eventos'] as &$ev) {
+                    if ($ev['tipo'] === 'cortado') {
+                        $ev['lista'] = [];
+                    }
+                }
+                unset($ev);
+            }
+            unset($d);
+        }
         $r['proximos_feriados'] = Agenda::proximosFeriados(6);
         $r['calendario_instalado'] = Agenda::calendarioInstalado();
         // A Agenda e so para consulta: feriado se muda no Calendario Geral, corte pelo guardiao.

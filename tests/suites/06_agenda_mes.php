@@ -8,6 +8,9 @@
  */
 T::suite('Agenda :: calendario do mes (igual ao Planejamento)');
 
+// a projecao de outubro vale vista ANTES do mes (ate hoje a agenda mostra o corte realizado)
+Calendario::fixarHoje('2026-09-30');
+
 Db::exec("INSERT INTO sis_configmsg (item, valor) VALUES ('wappmsg15depois', '{\"tipo_01\":\"1\"}')
           ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
 Db::exec("UPDATE sis_cliente SET dias_corte = 15 WHERE cli_ativado = 's'");
@@ -44,6 +47,7 @@ $m2 = Agenda::mes(2026, 10);
 T::igual('dias de corte lidos do MK-AUTH: sem segunda, o corte de 07/10 (qua) fica', true, in_array('07:V20', $quando($m2, 'corte'), true));
 Db::exec("UPDATE sis_opcao SET valor = 'Mon,Tue,Wed,Thu,Fri,Ped' WHERE nome = 'dias_de_corte'");
 Parametros::esquecer();
+Calendario::fixarHoje(null);
 
 T::suite('Feriados: contrato compartilhado');
 

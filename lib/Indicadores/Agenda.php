@@ -88,9 +88,101 @@ final class Agenda
                 usort($x['lista'], fn($a, $b) => strcasecmp((string) $a['nome'], (string) $b['nome']));
             }
             unset($x);
+            // o que o MK-AUTH ja cortou hoje (quem foi cortado sai dos candidatos acima)
+            $feito = self::cortados($hoje, $hoje)[$hoje] ?? null;
+            $porDia[$hoje]['cortados'] = $feito['clientes'] ?? 0;
+            $porDia[$hoje]['religados'] = $feito['religados'] ?? 0;
+            $porDia[$hoje]['valor_cortados'] = $feito['valor'] ?? 0.0;
             return ['dias' => array_values($porDia), 'corte_automatico' => Parametros::corteAutomatico(), 'guardiao' => $guardiao];
         });
         return $v;
+    }
+
+    /**
+     * Cortes que JA aconteceram, por dia, a partir do historico de bloqueios (tab_pfin_evento_bloqueio,
+     * lido do sis_logs; o cron de 10 min mantem o dia corrente em dia). Cada "bloqueado por atraso"
+     * e um corte de verdade: o corte so pega quem esta desbloqueado (observado na producao: nao ha
+     * relog diario). O desbloqueio e que NEM SEMPRE vai para o log, entao "religado" vem do log, de
+     * um corte posterior (teve de ser religado no meio) ou, no ultimo corte, do sis_cliente de agora.
+     * sis_cliente.data_bloq nao serve para contar: o MK-AUTH limpa o campo no desbloqueio.
+     *
+     * @return array<string,array{data:string,clientes:int,religados:int,valor:float,lista:array}> por dia
+     */
+    public static function cortados(string $de, string $ate): array
+    {
+        if (!Db::tabelaExiste('tab_pfin_evento_bloqueio')) {
+            return [];
+        }
+        $ep = [];
+        foreach (Db::todos('SELECT login, data, tipo, titulo FROM tab_pfin_evento_bloqueio WHERE data >= ? ORDER BY login, data, log_id', [$de]) as $e) {
+            $l = $e['login'];
+            $d = substr((string) $e['data'], 0, 10);
+            $n = isset($ep[$l]) ? count($ep[$l]) - 1 : -1;
+            if ($e['tipo'] === 'bloqueio') {
+                if ($n >= 0 && $ep[$l][$n]['data'] === $d) {
+                    continue;   // o mesmo corte duas vezes no dia conta uma
+                }
+                if ($n >= 0) {
+                    $ep[$l][$n]['religado'] = true;
+                }
+                $ep[$l][] = ['data' => $d, 'quando' => (string) $e['data'], 'hora' => substr((string) $e['data'], 11, 5),
+                             'titulo' => (int) $e['titulo'], 'religado' => false, 'religado_em' => null];
+            } elseif ($n >= 0 && !$ep[$l][$n]['religado']) {
+                $ep[$l][$n]['religado'] = true;
+                $ep[$l][$n]['religado_em'] = substr((string) $e['data'], 0, 16);
+            }
+        }
+        foreach ($ep as $l => $lista) {
+            $ep[$l] = array_values(array_filter($lista, fn($x) => $x['data'] <= $ate));
+            if (!$ep[$l]) {
+                unset($ep[$l]);
+            }
+        }
+        if (!$ep) {
+            return [];
+        }
+        $titulos = [];
+        foreach (array_chunk(array_values(array_unique(array_merge(...array_map(fn($x) => array_column($x, 'titulo'), array_values($ep))))), 500) as $lote) {
+            $in = implode(',', array_fill(0, count($lote), '?'));
+            foreach (Db::todos("SELECT id, DATE(datavenc) AS v, CAST(valor AS DECIMAL(12,2)) AS valor FROM sis_lanc WHERE id IN ($in)", $lote) as $t) {
+                $titulos[(int) $t['id']] = $t;
+            }
+        }
+        $clientes = [];
+        foreach (array_chunk(array_keys($ep), 500) as $lote) {
+            $in = implode(',', array_fill(0, count($lote), '?'));
+            foreach (Db::todos("SELECT login, nome, uuid_cliente, venc, bloqueado, data_desbloq FROM sis_cliente WHERE login IN ($in)", $lote) as $c) {
+                $clientes[$c['login']] = $c;
+            }
+        }
+        $dias = [];
+        foreach ($ep as $l => $lista) {
+            $c = $clientes[$l] ?? null;
+            foreach ($lista as $x) {
+                if (!$x['religado'] && ($c['bloqueado'] ?? 'sim') === 'nao') {
+                    $x['religado'] = true;
+                    $x['religado_em'] = !empty($c['data_desbloq']) && (string) $c['data_desbloq'] >= $x['quando'] ? substr((string) $c['data_desbloq'], 0, 16) : null;
+                }
+                $t = $titulos[$x['titulo']] ?? null;
+                $dias[$x['data']] ??= ['data' => $x['data'], 'clientes' => 0, 'religados' => 0, 'valor' => 0.0, 'lista' => []];
+                $dia = &$dias[$x['data']];
+                $dia['clientes']++;
+                $dia['religados'] += $x['religado'] ? 1 : 0;
+                $dia['valor'] += $t ? (float) $t['valor'] : 0.0;
+                $dia['lista'][] = ['login' => $l, 'nome' => $c['nome'] ?? $l, 'uuid' => $c['uuid_cliente'] ?? null,
+                                   'venc' => isset($c['venc']) ? (int) $c['venc'] : null, 'hora' => $x['hora'],
+                                   'vencimento' => $t['v'] ?? null, 'valor' => $t ? round((float) $t['valor'], 2) : null,
+                                   'religado' => $x['religado'], 'religado_em' => $x['religado_em']];
+                unset($dia);
+            }
+        }
+        ksort($dias);
+        foreach ($dias as &$x) {
+            $x['valor'] = round($x['valor'], 2);
+            usort($x['lista'], fn($a, $b) => strcasecmp((string) $a['nome'], (string) $b['nome']));
+        }
+        unset($x);
+        return $dias;
     }
 
     /** Titulos a vencer (receita recorrente) por vencimento efetivo, de hoje a hoje + $dias. */
@@ -299,8 +391,27 @@ final class Agenda
 
         self::anexarReais($dias, $ini->format('Y-m-d'), $fim->format('Y-m-d'), $hoje);
 
+        // ate hoje vale o que aconteceu: um selo com o corte realizado do dia (o MK-AUTH corta por
+        // titulo vencido, todos os grupos juntos) no lugar da projecao por grupo. Hoje, a projecao
+        // so fica se ainda ha quem cortar (o corte nao rodou ou rodou com o automatico desligado).
+        $ultimo = $fim->modify('-1 day')->format('Y-m-d');
+        $feitos = $ini->format('Y-m-d') <= $hoje ? self::cortados($ini->format('Y-m-d'), min($hoje, $ultimo)) : [];
+        foreach ($dias as $data => &$x) {
+            if ($data > $hoje) {
+                continue;
+            }
+            $x['eventos'] = array_values(array_filter($x['eventos'],
+                fn($e) => $e['tipo'] !== 'corte' || ($data === $hoje && !empty($e['real']))));
+            if (isset($feitos[$data])) {
+                $f = $feitos[$data];
+                $x['eventos'][] = ['tipo' => 'cortado', 'venc' => 0, 'clientes' => $f['clientes'], 'religados' => $f['religados'],
+                                   'valor' => $f['valor'], 'lista' => $f['lista']];
+            }
+        }
+        unset($x);
+
         // ordem dos selos: conflito, corte, vencimento, aviso
-        $peso = fn($e) => $e['tipo'] === 'corte' ? (!empty($e['conflito']) ? 0 : 1) : ($e['tipo'] === 'venc' ? 2 : 3);
+        $peso = fn($e) => $e['tipo'] === 'cortado' ? 0 : ($e['tipo'] === 'corte' ? (!empty($e['conflito']) ? 0 : 1) : ($e['tipo'] === 'venc' ? 2 : 3));
         foreach ($dias as &$x) {
             usort($x['eventos'], fn($a, $b) => [$peso($a), $a['venc']] <=> [$peso($b), $b['venc']]);
         }

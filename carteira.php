@@ -198,8 +198,8 @@ $pf_nominal = $pf_schema_ok && Permissao::tem('nominal');
                 { rotulo: 'Desbloqueio automático', cor: PFG.COR.verde, valores: ms.map(function (x) { return x.desbloqueios_auto; }) },
                 { rotulo: 'Desbloqueio manual', cor: PFG.COR.cinza, valores: ms.map(function (x) { return x.desbloqueios_manual; }) }
             ]);
-            $('#n-bloq').text('Episódios de bloqueio lidos do log do MK-AUTH desde ' + PF.data(d.historico_desde) +
-                ' (o MK-AUTH apaga log antigo; o addon guarda cada evento daqui para frente).');
+            $('#n-bloq').text('Cortes lidos do log do MK-AUTH desde ' + PF.data(d.historico_desde) +
+                ' (o MK-AUTH apaga log antigo; o addon guarda cada evento daqui para frente). Desbloqueios: só os que o MK-AUTH registra no log.');
             PFG.tabela($('#t-bloq'), ['Mês', 'Bloqueios', 'Desbloq. automático', 'Desbloq. manual', 'Tempo bloqueado (mediana, dias)'], ms.map(function (x) {
                 return [PF.mesCurto(x.mes), x.bloqueios, x.desbloqueios_auto, x.desbloqueios_manual, x.mediana_dias === null ? '—' : String(x.mediana_dias).replace('.', ',')];
             }));

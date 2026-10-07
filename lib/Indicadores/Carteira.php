@@ -216,9 +216,11 @@ final class Carteira
     }
 
     /**
-     * Bloqueios e desbloqueios por mes, montados em EPISODIOS a partir dos eventos do sis_logs
-     * (o MK-AUTH reloga o bloqueio todo dia enquanto o cliente segue bloqueado): um episodio
-     * comeca no primeiro bloqueio depois de um desbloqueio e termina no desbloqueio seguinte.
+     * Bloqueios e desbloqueios por mes, dos eventos do sis_logs. Cada "bloqueado por atraso" e um
+     * corte real (o corte so pega quem esta desbloqueado; nao ha relog diario — producao, 07/10/2026);
+     * o mesmo corte logado duas vezes no dia conta uma. O desbloqueio NEM SEMPRE vai para o log:
+     * auto/manual contam so os registrados, e o tempo bloqueado usa o religamento de hora conhecida
+     * (log ou, no ultimo corte, sis_cliente.data_desbloq — o MK-AUTH limpa data_bloq e guarda este).
      */
     public static function bloqueios(string $mes): array
     {
@@ -231,30 +233,40 @@ final class Carteira
                 $meses[$d->format('Y-m')] = ['mes' => $d->format('Y-m'), 'bloqueios' => 0, 'desbloqueios_auto' => 0,
                                              'desbloqueios_manual' => 0, 'duracoes' => []];
             }
-            // Quem ja estava bloqueado quando o historico do log comeca aparece nos primeiros dias
-            // como "bloqueio" (o MK-AUTH reloga todo dia): isso nao e episodio novo.
-            $carencia = $desde ? date('Y-m-d H:i:s', strtotime((string) $desde) + 2 * 86400) : null;
-            $estado = [];
-            $inicio = [];
+            $aberto = [];   // login => inicio do corte ainda sem religamento conhecido
+            $ultimoDia = [];
             foreach (Db::todos('SELECT login, data, tipo, origem FROM tab_pfin_evento_bloqueio WHERE data < ? ORDER BY login, data, log_id', [$fim]) as $e) {
                 $l = $e['login'];
-                $m = substr((string) $e['data'], 0, 7);
+                $quando = (string) $e['data'];
+                $m = substr($quando, 0, 7);
                 if ($e['tipo'] === 'bloqueio') {
-                    if (empty($estado[$l])) {
-                        $estado[$l] = true;
-                        $herdado = !isset($inicio[$l]) && $carencia !== null && (string) $e['data'] < $carencia;
-                        $inicio[$l] = $herdado ? null : (string) $e['data'];
-                        if (!$herdado && isset($meses[$m])) {
-                            $meses[$m]['bloqueios']++;
-                        }
+                    if (($ultimoDia[$l] ?? null) === substr($quando, 0, 10)) {
+                        continue;
                     }
-                } elseif (!empty($estado[$l])) {
-                    $estado[$l] = false;
+                    $ultimoDia[$l] = substr($quando, 0, 10);
+                    $aberto[$l] = $quando;   // um corte anterior ainda aberto foi religado sem log
+                    if (isset($meses[$m])) {
+                        $meses[$m]['bloqueios']++;
+                    }
+                } elseif (array_key_exists($l, $aberto) || !isset($ultimoDia[$l])) {
+                    // fecha o corte aberto (ou o anterior ao historico); desbloqueio repetido nao conta
                     if (isset($meses[$m])) {
                         $meses[$m][$e['origem'] === 'manual' ? 'desbloqueios_manual' : 'desbloqueios_auto']++;
-                        if ($inicio[$l] !== null) {
-                            $meses[$m]['duracoes'][] = (strtotime((string) $e['data']) - strtotime($inicio[$l])) / 86400;
+                        if (isset($aberto[$l])) {
+                            $meses[$m]['duracoes'][] = (strtotime($quando) - strtotime($aberto[$l])) / 86400;
                         }
+                    }
+                    unset($aberto[$l]);
+                    $ultimoDia[$l] ??= '';
+                }
+            }
+            // ultimo corte religado sem log: a hora vem do sis_cliente
+            foreach (array_chunk(array_keys($aberto), 500) as $lote) {
+                $in = implode(',', array_fill(0, count($lote), '?'));
+                foreach (Db::todos("SELECT login, data_desbloq FROM sis_cliente WHERE bloqueado = 'nao' AND login IN ($in)", $lote) as $c) {
+                    $q = (string) $c['data_desbloq'];
+                    if ($q !== '' && $q >= $aberto[$c['login']] && $q < $fim && isset($meses[substr($q, 0, 7)])) {
+                        $meses[substr($q, 0, 7)]['duracoes'][] = (strtotime($q) - strtotime($aberto[$c['login']])) / 86400;
                     }
                 }
             }

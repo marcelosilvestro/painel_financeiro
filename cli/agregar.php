@@ -3,7 +3,7 @@
  * painel_financeiro :: processamento dos indicadores (cron).
  *
  *   php cli/agregar.php [--completo] [--conf=ARQ]   noturno: historico (fatos de caixa, safra, atraso, bloqueios)
- *   php cli/agregar.php --hoje [--conf=ARQ]         a cada 10 min: so o caixa do dia corrente
+ *   php cli/agregar.php --hoje [--conf=ARQ]         a cada 10 min: caixa do dia corrente e bloqueios novos
  *
  * So LE as tabelas do MK-AUTH; grava apenas nas tab_pfin_*. Uma trava no banco (GET_LOCK)
  * impede duas execucoes do mesmo tipo ao mesmo tempo — a segunda sai com codigo 2.

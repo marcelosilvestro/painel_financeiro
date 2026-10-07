@@ -19,7 +19,8 @@ include('nav/header.php');
         </div>
         <button type="button" class="lc-btn-outline" id="btn-hoje"><i class="bi bi-calendar-check"></i> Hoje</button>
         <span class="pf-ag-legenda" aria-hidden="true">
-            <span class="pf-ev corte mini"><i class="bi bi-scissors"></i> corte</span>
+            <span class="pf-ev feito mini"><i class="bi bi-scissors"></i> cortados</span>
+            <span class="pf-ev corte mini"><i class="bi bi-scissors"></i> corte previsto</span>
             <span class="pf-ev conflito mini"><i class="bi bi-exclamation-triangle-fill"></i> corte em feriado</span>
             <span class="pf-ev venc mini"><i class="bi bi-check-circle-fill"></i> vencimento</span>
             <span class="pf-ev aviso mini"><i class="bi bi-envelope-fill"></i> aviso</span>
@@ -44,7 +45,7 @@ include('nav/header.php');
             <div class="pf-ag-sem" aria-hidden="true"><span class="fds">Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span class="fds">Sáb</span></div>
             <div class="pf-ag-grade" id="ag-grade"><div class="lc-loading" style="grid-column:1/-1">Carregando...</div></div>
             <ul class="pf-ag-lista" id="ag-lista"></ul>
-            <div class="pf-nota" style="padding-top:8px">Projeção pela regra do MK-AUTH: vencimento no fim de semana vai para a segunda; corte = vencimento + carência + 1, só nos dias da semana com corte, <b>sem pular feriado</b>. Nos próximos 7 dias, o corte mostra quantos clientes serão cortados de verdade (têm título vencido). Clique num dia para ver o detalhe.</div>
+            <div class="pf-nota" style="padding-top:8px">Projeção pela regra do MK-AUTH: vencimento no fim de semana vai para a segunda; corte = vencimento + carência + 1, só nos dias da semana com corte, <b>sem pular feriado</b>. Nos próximos 7 dias, o corte mostra quantos clientes serão cortados de verdade (têm título vencido). Até hoje, o dia mostra quem o MK-AUTH <b>cortou</b> (histórico de bloqueios, atualizado a cada 10 minutos). Clique num dia para ver o detalhe.</div>
         </div>
 
         <aside class="pf-ag-lado">
@@ -97,7 +98,7 @@ include('nav/header.php');
         </div>
         <div class="lc-modal-body" style="padding:0">
             <div class="lc-table-wrap" style="max-height:60vh;overflow:auto">
-                <table class="lc-table pf-tabela"><thead><tr><th scope="col">Cliente</th><th scope="col">Venceu</th><th class="num" scope="col">Títulos</th><th class="num" scope="col">Valor</th></tr></thead>
+                <table class="lc-table pf-tabela"><thead><tr id="mc-cab"></tr></thead>
                 <tbody id="mc-linhas"></tbody></table>
             </div>
         </div>
@@ -123,6 +124,11 @@ include('nav/header.php');
 
     // ------------------------------------------------------------------ selos
     function selo(e) {
+        if (e.tipo === 'cortado') {
+            var seg = e.clientes - e.religados;
+            return '<span class="pf-ev feito"><i class="bi bi-scissors"></i> ' + e.clientes + ' cortado' + (e.clientes === 1 ? '' : 's') +
+                   '<small>' + (e.religados ? seg + ' bloq. · ' + e.religados + ' religado' + (e.religados === 1 ? '' : 's') : 'todos seguem bloqueados') + '</small></span>';
+        }
         if (e.tipo === 'corte') {
             var cls = e.conflito ? 'conflito' : 'corte';
             var ico = e.conflito ? 'bi-exclamation-triangle-fill pf-pulsa' : 'bi-scissors';
@@ -228,7 +234,13 @@ include('nav/header.php');
             CORTES = d;
             var hoje = d.dias[0], tot = 0, val = 0;
             d.dias.forEach(function (x) { tot += x.clientes; val += x.valor; });
-            kpi('k-corte-hoje', 'bi-scissors', 'Corte hoje', PF.num(hoje.clientes), hoje.clientes ? PF.brl(hoje.valor) + ' em atraso' : 'ninguém');
+            if (hoje.cortados) {
+                kpi('k-corte-hoje', 'bi-scissors', 'Cortados hoje', PF.num(hoje.cortados),
+                    (hoje.religados ? hoje.religados + ' já religado' + (hoje.religados === 1 ? '' : 's') : 'todos seguem bloqueados') +
+                    (hoje.clientes ? ' · ' + hoje.clientes + ' a cortar' : ''));
+            } else {
+                kpi('k-corte-hoje', 'bi-scissors', 'Corte hoje', PF.num(hoje.clientes), hoje.clientes ? PF.brl(hoje.valor) + ' em atraso' : 'ninguém');
+            }
             kpi('k-corte-7', 'bi-calendar-week', 'Cortes em 7 dias', PF.num(tot), tot ? PF.brl(val) + ' em atraso' : 'ninguém');
         }).catch(PF.erro);
         PF.api('ag.vencimentos', { dias: 7 }).then(function (d) {
@@ -258,7 +270,13 @@ include('nav/header.php');
         if (!x.eventos.length) h += '<div class="lc-empty">Nenhum vencimento, aviso ou corte neste dia.</div>';
         x.eventos.forEach(function (e, j) {
             h += '<div class="pf-ag-det">' + selo(e) + '<div class="pf-ag-det-txt">';
-            if (e.tipo === 'corte') {
+            if (e.tipo === 'cortado') {
+                h += 'O MK-AUTH cortou <b>' + e.clientes + '</b> cliente(s) neste dia, por título vencido (' + PF.brl(e.valor) + ' nos títulos que motivaram o corte). ' +
+                     (e.religados ? e.religados + ' já foram religados (pagaram ou desbloqueio manual) e ' + (e.clientes - e.religados) + ' seguem bloqueados.' : 'Todos seguem bloqueados.');
+                h += '<div class="pf-ag-acoes">';
+                if (pode.nominal && e.lista.length) h += '<button type="button" class="lc-btn-outline" data-ver-corte="' + j + '">Ver clientes</button>';
+                h += '</div>';
+            } else if (e.tipo === 'corte') {
                 h += 'Clientes com vencimento dia ' + e.venc + ' e ' + e.dias_corte + ' dias de carência (vencimento de ' + PF.data(e.nominal) + '). ' +
                      (e.real !== null && e.real !== undefined ? '<b>' + e.real + '</b> têm título vencido e serão cortados.' : e.clientes + ' clientes no grupo (projeção).');
                 if (e.conflito) h += '<div class="pf-ag-alerta"><i class="bi bi-exclamation-triangle-fill"></i> O corte cai no feriado <b>' + PF.esc(e.conflito) + '</b>. O MK-AUTH corta mesmo assim: ligue o guardião de feriado em Configurações › Cobrança.</div>';
@@ -281,6 +299,19 @@ include('nav/header.php');
     }
 
     function verCorte(e, data) {
+        if (e.tipo === 'cortado') {
+            $('#mc-titulo').text('Cortados em ' + PF.data(data) + ' (' + e.lista.length + ')');
+            $('#mc-cab').html('<th scope="col">Cliente</th><th scope="col">Venceu</th><th scope="col">Situação</th><th class="num" scope="col">Título</th>');
+            $('#mc-linhas').html(e.lista.map(function (c) {
+                return '<tr><td>' + PF.linkCliente(c.uuid, c.nome) + '<div class="pf-sub">' + PF.esc(c.login) + '</div></td><td>' + (c.vencimento ? PF.data(c.vencimento) : '—') +
+                       '</td><td>' + (c.religado ? '<span class="pf-res ok">religado' + (c.religado_em ? ' ' + PF.esc(c.religado_em.slice(8, 10) + '/' + c.religado_em.slice(5, 7) + ' ' + c.religado_em.slice(11, 16)) : '') + '</span>'
+                                                 : '<span class="pf-res erro">bloqueado</span>') +
+                       '<div class="pf-sub">cortado às ' + PF.esc(c.hora) + '</div></td><td class="num"><b>' + (c.valor !== null ? PF.brl(c.valor) : '—') + '</b></td></tr>';
+            }).join('') || '<tr><td colspan="4" class="lc-empty">Nenhum cliente.</td></tr>');
+            PF.abrirModal('pf-modal-corte');
+            return;
+        }
+        $('#mc-cab').html('<th scope="col">Cliente</th><th scope="col">Venceu</th><th class="num" scope="col">Títulos</th><th class="num" scope="col">Valor</th>');
         var dia = (CORTES && CORTES.dias || []).filter(function (c) { return c.data === data; })[0];
         var lista = dia ? dia.lista.filter(function (c) { return c.venc === e.venc; }) : [];
         $('#mc-titulo').text('Corte em ' + PF.data(data) + ' — vencimento dia ' + e.venc + ' (' + lista.length + ')');

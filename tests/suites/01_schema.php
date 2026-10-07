@@ -24,7 +24,7 @@ Db::pdo()->exec("CREATE TABLE sis_lanc (
 Db::pdo()->exec("CREATE TABLE sis_cliente (
     id INT AUTO_INCREMENT PRIMARY KEY, login VARCHAR(64) UNIQUE, nome VARCHAR(255), uuid_cliente VARCHAR(48),
     plano VARCHAR(64), bairro VARCHAR(255), cidade VARCHAR(255), vendedor VARCHAR(255), venc VARCHAR(2),
-    cli_ativado ENUM('s','n') DEFAULT 's', bloqueado ENUM('sim','nao') DEFAULT 'nao', data_bloq DATETIME NULL,
+    cli_ativado ENUM('s','n') DEFAULT 's', bloqueado ENUM('sim','nao') DEFAULT 'nao', data_bloq DATETIME NULL, data_desbloq DATETIME NULL,
     data_desativacao DATETIME NULL, isento VARCHAR(3) DEFAULT 'nao', dias_corte INT(3) NULL, data_ins DATETIME NULL,
     desconto DECIMAL(12,2) DEFAULT 0, acrescimo DECIMAL(12,2) DEFAULT 0, observacao ENUM('sim','nao') DEFAULT 'nao') DEFAULT CHARSET=latin1");
 Db::pdo()->exec("CREATE TABLE sis_logs (id INT AUTO_INCREMENT PRIMARY KEY, registro TEXT, data VARCHAR(30), login VARCHAR(64), tipo VARCHAR(20), operacao VARCHAR(20)) DEFAULT CHARSET=latin1");
